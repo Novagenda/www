@@ -47,6 +47,20 @@
         }
 
         function connectSocketServer() {
+
+            try {
+                var support = "MozWebSocket" in window ? 'MozWebSocket' : ("WebSocket" in window ? 'WebSocket' : null);
+                if (support == null) {
+                    alert("You have no support for WebSockets");
+                }
+                else {
+                    alert("You have support for WebSockets");
+                }
+            }
+            catch (err) {
+                alert("Exception occured" + err.message);
+            }
+
             var support = "MozWebSocket" in window ? 'MozWebSocket' : ("WebSocket" in window ? 'WebSocket' : null);
 
             if (support == null) {
@@ -293,22 +307,6 @@
         }
 
         function startMeasurement() {
-
-            try
-            {
-                var support = "MozWebSocket" in window ?'MozWebSocket':("WebSocket" in window?'WebSocket':null);
-                if (support == null) {
-                    alert("No Support");
-                }
-                else {
-                    alert("Lots of support");
-                }
-            }
-            catch(err)
-            {
-                alert("Exception occured" + err.message);
-            }
-            
             var productId = $('#products').val();
             serviceStartMeasurement(selectedSerialNumber, productId);
         }
