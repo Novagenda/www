@@ -294,7 +294,7 @@
 
         function startMeasurement() {
 
-           /* try
+            try
             {
                 var support = "MozWebSocket" in window ?'MozWebSocket':("WebSocket" in window?'WebSocket':null);
                 if (support == null) {
@@ -308,7 +308,7 @@
             {
                 alert("Exception occured" + err.message);
             }
-            */
+            
             var productId = $('#products').val();
             serviceStartMeasurement(selectedSerialNumber, productId);
         }
