@@ -53,9 +53,7 @@
                 if (support == null) {
                     alert("You have no support for WebSockets");
                 }
-                else {
-                    alert("You have support for WebSockets");
-                }
+                
             }
             catch (err) {
                 alert("Exception occured" + err.message);
@@ -108,17 +106,6 @@
         function disconnectWebSocket() {
             if (ws) {
                 ws.close();
-            }
-        }
-
-        function grantPermission() {
-            var userName = Request.QueryString["username"];
-            var passWord = Request.QueryString["password"];
-
-            if (userName == "fossuser" && passWord == "fancywebsockettest!") {
-                var filePath = Path.Combine(Request.PsysicalApplicationPath, "App_Data", "index.html");
-                Respone.Clear();
-                Respone.WriteFile(filePath);
             }
         }
 
