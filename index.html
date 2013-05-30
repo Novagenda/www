@@ -1,0 +1,531 @@
+﻿<!DOCTYPE html>
+<!--
+ Licensed to the Apache Software Foundation (ASF) under one
+ or more contributor license agreements.  See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership.  The ASF licenses this file
+ to you under the Apache License, Version 2.0 (the
+ "License"); you may not use this file except in compliance
+ with the License.  You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing,
+ software distributed under the License is distributed on an
+ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ KIND, either express or implied.  See the License for the
+ specific language governing permissions and limitations
+ under the License. 
+-->
+<html>
+  <head>
+    <title>The Matilde Way - WebSocket Client Test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="css/bootstrap.css" rel="stylesheet" media="screen">
+    <script type="text/javascript" src="js/jquery.js" ></script>
+    <script type="text/javascript" src="js/bootstrap.js" ></script>
+    <script type="text/javascript" src="js/bootstrap-dropdown.js"></script>
+    <script type="text/javascript" src="flot/jquery.flot.js"></script>
+    <script type="text/javascript" src="cordova-2.7.0.js"></script>
+    <script type="text/javascript">
+        var noSupportMessage = "Your browser cannot support WebSocket!";
+        var ws;
+        var hasInstrumentBeenUpdateFirstTime = false;
+        var selectedSerialNumber;
+        var currentInstrumentState = "";
+        var currentInstrumentParkState = false;
+
+        var graphData = new Array();
+        for (var i = 0; i < 5; i++) {
+            graphData.push(new Array());
+        }
+
+        connectWebSocket();
+
+        function appendMessage(message) {
+            //$('body').append(message);
+        }
+
+        function connectSocketServer() {
+            var support = "MozWebSocket" in window ? 'MozWebSocket' : ("WebSocket" in window ? 'WebSocket' : null);
+
+            if (support == null) {
+                appendMessage("* " + noSupportMessage + "<br/>");
+                return;
+            }
+
+            appendMessage("* Connecting to server ..<br/>");
+            // create a new websocket and connect
+            //ws = new window[support]('ws://localhost:10000/');
+            //ws = new window[support]('ws://localhost:27500');
+            ws = new window[support]('ws://193.182.166.79:27500');
+            // when the connection is established, this method is called
+            ws.onopen = function () {
+                appendMessage('* Connection open<br/>');
+                // $('#connectButton').attr("disabled", "disabled");
+                // $('#disconnectButton').attr("disabled", "");
+
+                serviceGetInstruments();
+                sleep(500);
+                updateInstrument();
+            };
+
+            // when the connection is closed, this method is called
+            ws.onclose = function () {
+                alert("Initialization failed, reload page");
+                //  appendMessage('* Connection closed<br/>');
+                //  $('#connectButton').attr("disabled", "");
+                //  $('#disconnectButton').attr("disabled", "disabled");
+            }
+
+            // when data is comming from the server, this metod is called
+            ws.onmessage = handleMessage;
+            //function (evt) {
+            //    appendMessage("# " + evt.data + "<br />");
+            //};
+
+        }
+
+        function connectWebSocket() {
+            connectSocketServer();
+        }
+
+
+        function disconnectWebSocket() {
+            if (ws) {
+                ws.close();
+            }
+        }
+
+        function grantPermission() {
+            var userName = Request.QueryString["username"];
+            var passWord = Request.QueryString["password"];
+
+            if (userName == "fossuser" && passWord == "fancywebsockettest!") {
+                var filePath = Path.Combine(Request.PsysicalApplicationPath, "App_Data", "index.html");
+                Respone.Clear();
+                Respone.WriteFile(filePath);
+            }
+        }
+
+        function serviceGetInstruments() {
+            if (ws) {
+                ws.send("{ clientName: \"Browser\", requestType: \"getInstruments\" }");
+            }
+        }
+
+
+        function serviceGetState(serialNumber) {
+            if (ws) {
+                ws.send("{ clientName: \"Browser\", serialNumber: \"" + serialNumber + "\", requestType: \"getState\" }");
+            }
+        }
+
+        function serviceGetParkState(serialNumber) {
+            if (ws) {
+                ws.send("{ clientName: \"Browser\", serialNumber: \"" + serialNumber + "\", requestType: \"getParkState\" }");
+            }
+        }
+
+        function serviceGetEvents(serialNumber) {
+            if (ws) {
+                ws.send("{ clientName: \"Browser\", serialNumber: \"" + serialNumber + "\", requestType: \"getEvents\" }");
+            }
+        }
+
+        function serviceGetProducts(serialNumber) {
+            if (ws) {
+                ws.send("{ clientName: \"Browser\", serialNumber: \"" + serialNumber + "\", requestType: \"getProducts\" }");
+            }
+        }
+
+        function serviceStartMeasurement(serialNumber, productId) {
+            if (ws) {
+                ws.send("{ clientName: \"Browser\", serialNumber: \"" + serialNumber + "\", requestType: \"startMeasurement\", requestData: " + productId + " }");
+            }
+        }
+
+        function serviceStopMeasurement(serialNumber) {
+            if (ws) {
+                ws.send("{ clientName: \"Browser\", serialNumber: \"" + serialNumber + "\", requestType: \"stopMeasurement\" }");
+            }
+        }
+
+        function serviceParkDiamonds(serialNumber) {
+            if (ws) {
+                ws.send("{ clientName: \"Browser\", serialNumber: \"" + serialNumber + "\", requestType: \"parkDiamonds\" }");
+            }
+        }
+
+        function serviceStartSelftest(serialNumber) {
+            if (ws) {
+                ws.send("{ clientName: \"Browser\", serialNumber: \"" + serialNumber + "\", requestType: \"startSelfTest\" }");
+            }
+        }
+
+        function handleMessage(message) {
+            var result = JSON.parse(message.data);
+
+            var serialNumber = result.serialNumber;
+            var responseType = result.responseType;
+            var responseData = result.responseData;
+
+            if (responseType == "instruments") {
+                selectedSerialNumber = responseData[0];
+                $("#instrumentSerialNumber").text(selectedSerialNumber);
+
+                if (!hasInstrumentBeenUpdateFirstTime) {
+                    hasInstrumentBeenUpdateFirstTime = true;
+                    updateInstrument();
+                }
+            }
+            else if (responseType == "state") {
+                currentInstrumentState = responseData;
+
+                var newState = currentInstrumentState;
+                if (currentInstrumentParkState) newState += " (Parked)";
+                $("#instrumentState").text(newState);
+            }
+            else if (responseType == "parkState") {
+                currentInstrumentParkState = responseData;
+
+                var newState = currentInstrumentState;
+                if (currentInstrumentParkState) newState += " (Parked)";
+                $("#instrumentState").text(newState);
+            }
+            else if (responseType == "products") {
+                for (var i = 0; i < responseData.length; i++) {
+                    var name = responseData[i].name;
+                    var id = parseInt(responseData[i].id);
+                    var newOption = $('<option>');
+                    newOption.attr('value', id).text(name);
+                    $('#products').append(newOption);
+                }
+            }
+            else if (responseType == "sample") {
+                for (var i = 0; i < responseData.results.length; i++) {
+                    var name = responseData.results[i].name;
+                    var value = responseData.results[i].value;
+                    var roundedValue = Math.round(value * 100) / 100;
+
+                    var nameId = "predictedName" + i;
+                    var valueId = "predictedValue" + i;
+
+                    $("#" + nameId).text(name);
+                    $("#" + valueId).text(roundedValue);
+
+                    graphData[i].push([graphData[i].length, value]);
+                }
+
+                drawGraph();
+            }
+            else if (responseType == "eventAdded") {
+                for (var i = 0; i < responseData.length; i++) {
+                    if (responseData[i].severity != "Information") {
+                        var id = "_" + responseData[i].code + "_" + responseData[i].source + "_" + responseData[i].module + "_";
+
+                        var label = "";
+                        if (responseData[i].severity == "Warning") label = '<span class="label label-warning">Warning</span>';
+                        else if (responseData[i].severity == "Error") label = '<span class="label label-important">Error</span>';
+
+                        var newElement = '<div class="row-fluid" id="' +
+                        id +
+                        '"><div class="span1">' +
+                        label +
+                        '</div><div class="span4">' +
+                        responseData[i].message +
+                        '</div><div class="span4">' +
+                        responseData[i].hint +
+                        '</div><div class="span1"></div></div>';
+
+                        $("#currentEvents").append(newElement);
+                    }
+                }
+            }
+            else if (responseType == "eventChanged") {
+                for (var i = 0; i < responseData.length; i++) {
+                    if (responseData[i].severity != "Information") {
+                        var id = "_" + responseData[i].code + "_" + responseData[i].source + "_" + responseData[i].module + "_";
+
+                        var label = "";
+                        if (responseData[i].severity == "Warning") label = '<span class="label label-warning">Warning</span>';
+                        else if (responseData[i].severity == "Error") label = '<span class="label label-important">Error</span>';
+
+                        var newElement = '<div class="row-fluid" id="' +
+                        id +
+                        '"><div class="span1">' +
+                        label +
+                        '</div><div class="span4">' +
+                        responseData[i].message +
+                        '</div><div class="span4">' +
+                        responseData[i].hint +
+                        '</div><div class="span1"></div></div>';
+
+                        $("#" + id).remove();
+                        $("#currentEvents").append(newElement);
+                    }
+                }
+            }
+            else if (responseType == "eventDeleted") {
+                for (var i = 0; i < responseData.length; i++) {
+                    if (responseData[i].severity != "Information") {
+                        var id = "_" + responseData[i].code + "_" + responseData[i].source + "_" + responseData[i].module + "_";
+                        $("#" + id).remove();
+                    }
+                }
+            }
+            else {
+                appendMessage("# Unhandles response <br />");
+                appendMessage("# " + message.data + "<br />");
+            }
+        }
+
+
+        function updateInstrument() {
+            serviceGetState(selectedSerialNumber);
+            serviceGetParkState(selectedSerialNumber);
+            serviceGetEvents(selectedSerialNumber);
+            serviceGetProducts(selectedSerialNumber);
+        }
+
+        function getProducts() {
+            serviceGetProducts(selectedSerialNumber);
+        }
+
+        function startMeasurement() {
+
+           /* try
+            {
+                var support = "MozWebSocket" in window ?'MozWebSocket':("WebSocket" in window?'WebSocket':null);
+                if (support == null) {
+                    alert("No Support");
+                }
+                else {
+                    alert("Lots of support");
+                }
+            }
+            catch(err)
+            {
+                alert("Exception occured" + err.message);
+            }
+            */
+            var productId = $('#products').val();
+            serviceStartMeasurement(selectedSerialNumber, productId);
+        }
+
+        function stopMeasurement() {
+            serviceStopMeasurement(selectedSerialNumber);
+        }
+
+        function parkDiamonds() {
+            serviceParkDiamonds(selectedSerialNumber);
+        }
+
+        function startSelftest() {
+            serviceStartSelftest(selectedSerialNumber);
+        }
+
+        function drawGraph() {
+            var dd = new Array();
+            for (var i = 0; i < 10; i++) {
+                dd.push([i, i]);
+            }
+            $.plot($("#trendGraph"), graphData);
+        }
+
+        $(document).ready(function () {
+            drawGraph();
+        });
+
+    </script>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row-fluid">
+            <div class="span2"></div>
+            <div class="span10">
+                <div class="row-fluid">
+                    <div class="span6"><h3 id="instrumentSerialNumber">Initializing...</h3></div>
+                    <div class="span6"><h3 id="instrumentState"></h3></div>
+                </div>
+            </div>
+        </div>
+        <div class="row-fluid">
+            <div class="span2">
+                <div class="row-fluid">
+                    <div class="span12">
+                        <select id="products">
+                        </select>
+
+                    </div>
+                </div>
+                <div class="row-fluid">
+                    <div class="span12" style="padding:5px">
+                        <button class="btn btn-primary btn-block" onclick="startMeasurement()">Start Measurement</button>
+                    </div>
+                </div>
+                <div class="row-fluid">
+                    <div class="span12" style="padding:5px">
+                        <button class="btn btn-primary btn-block" onclick="stopMeasurement()">Stop Measurement</button>
+                    </div>
+                </div>
+                <div class="row-fluid">
+                    <div class="span12" style="padding:5px">
+                        <button class="btn btn-info btn-block" onclick="parkDiamonds()">Park Diamonds</button>
+                    </div>
+                </div>
+                <div class="row-fluid">
+                    <div class="span12" style="padding:5px">
+                        <button class="btn btn-info btn-block" onclick="startSelftest()">Start Selftest</button>
+                    </div>
+                </div>
+            </div>
+            <div class="span10">
+                <div class="row-fluid">
+                    <div class="span5">
+                        <div class="row-fluid">
+                            <div class="span12" id="predictedName0"></div>
+                        </div>
+                        <div class="row-fluid">
+                            <div class="span12"><h1 id="predictedValue0"></h1></div>
+                        </div>
+                    </div>
+                    <div class="span5">
+                        <div class="row-fluid">
+                            <div class="span12" id="predictedName1"></div>
+                        </div>
+                        <div class="row-fluid">
+                            <div class="span12"><h1 id="predictedValue1"></h1></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row-fluid">
+                    <div class="span5">
+                        <div class="row-fluid">
+                            <div class="span12" id="predictedName2"></div>
+                        </div>
+                        <div class="row-fluid">
+                            <div class="span12"><h1 id="predictedValue2"></h1></div>
+                        </div>
+                    </div>
+                    <div class="span5">
+                        <div class="row-fluid">
+                            <div class="span12" id="predictedName3"></div>
+                        </div>
+                        <div class="row-fluid">
+                            <div class="span12"><h1 id="predictedValue3"></h1></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row-fluid">
+                    <div class="span5">
+                        <div class="row-fluid">
+                            <div class="span12" id="predictedName4"></div>
+                        </div>
+                        <div class="row-fluid">
+                            <div class="span12"><h1 id="predictedValue4"></h1></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row-fluid">
+                    <div class="span10">&nbsp;</div>
+                </div>
+                <div class="row-fluid">
+                    <div class="span10"><h4>Events</h4></div>
+                </div>
+                <div id="currentEvents">
+                    <div class="row-fluid" id="testWarningEvent">
+                        <div class="span1">
+                            <span class="label label-warning">Warning</span>
+                        </div>
+                        <div class="span4">
+                            This is a test warning
+                        </div>
+                        <div class="span4">
+                            This error is not an actual error, but is here to show how errors would look like.
+                        </div>
+                        <div class="span1">
+                            <button class="btn btn-small" onclick='$("#testWarningEvent").remove()'>Reset</button>
+                        </div>
+                    </div>
+                    <div class="row-fluid" id="testErrorEvent">
+                        <div class="span1">
+                            <span class="label label-important">Error</span>
+                        </div>
+                        <div class="span4">
+                            This is a test error
+                        </div>
+                        <div class="span4">
+                            This error is not an actual error, but is here to show how errors would look like.
+                        </div>
+                        <div class="span1">
+                            <button class="btn btn-small" onclick='$("#testErrorEvent").remove()'>Reset</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="row-fluid">
+                    <div class="span10">&nbsp;</div>
+                </div>
+                <div class="row-fluid">
+                    <div class="span10"><h4>Graph</h4></div>
+                </div>
+                <div class="row-fluid">
+                    <div class="span10" id="trendGraph" style="height:400px;">
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+<!--    <div>
+        <h3>Connection and instrument selection</h3>
+        <div>
+            <input type="button" id="connectButton" value="Connect" onclick="connectWebSocket()" />
+            <input type="button" id="disconnectButton" value="Disconnect" disabled="disabled" onclick="disconnectWebSocket()" />
+            Instruments: <select id="instruments"></select>
+            <input type="button" id="updateInstrument" value="Update" onclick="updateInstrument()" />
+        </div>
+    </div>
+
+    <hr />
+
+    <div>
+        <h3>Instrument feedback (State, events and predicted values)</h3>
+        <div><span id="state">State: Unknown</span><span id="parkState"></span></div>
+        <div>
+            Predicted values: 
+            <span id="predictedValues"></span>
+        </div>
+        <div>
+            Events:
+            <div id="currentEvents" style="background-color:aqua"></div>
+        </div>
+    </div>
+        
+    <hr />
+
+    <div>
+        <h3>Instrument actions</h3>
+        <div>
+            <select id="products1"></select>
+            <input type="button" id="getProducts" value="Get Products" onclick="getProducts()" />
+        </div>
+        <div>
+            <input type="button" id="startButton" value="Start" onclick="startMeasurement()" />
+            <input type="button" id="stopButton" value="Stop" onclick="stopMeasurement()" />
+        </div>
+        <div>
+            <input type="button" id="parkButton" value="Park" onclick="parkDiamonds()" />
+            <input type="button" id="selfTestButton" value="Selftest" onclick="startSelftest()" />
+        </div>
+    </div>
+
+    <hr />
+
+    <h3>Log</h3>-->
+
+    
+</body>
+</html>
